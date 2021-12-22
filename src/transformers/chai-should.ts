@@ -223,7 +223,7 @@ export default function transformer(fileInfo, api, options) {
         }
 
         return createCall(
-          'toBe',
+          'toEqual',
           [j.booleanLiteral(containsNot ? false : true)],
           updateExpect(value, (node) =>
             j.callExpression(
@@ -235,7 +235,7 @@ export default function transformer(fileInfo, api, options) {
       }
       case 'string':
         return createCall(
-          'toBe',
+          'toEqual',
           args,
           updateExpect(value, (node) => j.unaryExpression('typeof', node)),
           containsNot
@@ -422,12 +422,12 @@ export default function transformer(fileInfo, api, options) {
               ? createCall('toBeFalsy', [], rest)
               : createCall('toBeTruthy', [], rest)
           case 'true':
-            return createCall('toBe', [j.booleanLiteral(true)], rest, containsNot)
+            return createCall('toEqual', [j.booleanLiteral(true)], rest, containsNot)
           case 'false':
-            return createCall('toBe', [j.booleanLiteral(false)], rest, containsNot)
+            return createCall('toEqual', [j.booleanLiteral(false)], rest, containsNot)
           case 'finite':
             return createCall(
-              'toBe',
+              'toEqual',
               [j.booleanLiteral(!containsNot)],
               updateExpect(value, (node) => {
                 return createCallChain(['isFinite'], [node])
@@ -437,7 +437,7 @@ export default function transformer(fileInfo, api, options) {
           case 'frozen':
           case 'sealed':
             return createCall(
-              'toBe',
+              'toEqual',
               [j.booleanLiteral(!containsNot)],
               updateExpect(value, (node) => {
                 return createCallChain(
@@ -518,7 +518,6 @@ export default function transformer(fileInfo, api, options) {
         const restRaw = getAllBefore(isPrefix, value.callee, 'should')
         const rest = getRestWithLengthHandled(p, restRaw)
         const containsNot = chainContains('not', value.callee, isPrefix)
-        const containsDeep = chainContains('deep', value.callee, isPrefix)
         const containsAny = chainContains('any', value.callee, isPrefix)
         const args = value.arguments
         const numberOfArgs = args.length
@@ -530,10 +529,6 @@ export default function transformer(fileInfo, api, options) {
           case 'eq':
           case 'equal':
           case 'equals':
-            if (containsDeep) {
-              return createCall('toEqual', args, rest, containsNot)
-            }
-
             if (numberOfArgs === 1) {
               const { type } = firstArg
 
@@ -550,7 +545,7 @@ export default function transformer(fileInfo, api, options) {
               }
             }
 
-            return createCall('toBe', args, rest, containsNot)
+            return createCall('toEqual', args, rest, containsNot)
           case 'throw':
             return createCall('toThrowError', args, rest, containsNot)
           case 'string':
@@ -603,11 +598,6 @@ export default function transformer(fileInfo, api, options) {
               false
             )
           case 'eql':
-            if (numberOfArgs === 1 && args[0].type === 'Literal') {
-              return createCall('toBe', args, rest, containsNot)
-            } else {
-              return createCall('toEqual', args, rest, containsNot)
-            }
           case 'equalto':
             return createCall('toEqual', args, rest, containsNot)
           case 'above':
