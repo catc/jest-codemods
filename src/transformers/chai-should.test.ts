@@ -387,12 +387,14 @@ test('converts "includes-contains"', () => {
         expect([1, 2, 3]).to.include(2);
         expect('foobar').which.contains('foo');
         expect({ foo: 1, bar: 2 }).to.contain({ bar: 2 });
+        expect(a).to.contain(b);
     `,
     `
         expect('foobar').toContain('foo');
-        expect([1, 2, 3]).toEqual(expect.arrayContaining([2]));
+        expect([1, 2, 3]).toContain(2);
         expect('foobar').toContain('foo');
         expect({ foo: 1, bar: 2 }).toMatchObject({ bar: 2 });
+        expect(a).toContain(b);
     `
   )
 })
@@ -404,8 +406,8 @@ test('converts chained "includes-contains"', () => {
         expect(arr).to.be.an('array').that.does.not.include(3);
     `,
     `
-        expect([1, 2, 3]).toEqual(expect.arrayContaining([2]));
-        expect(arr).toEqual(expect.not.arrayContaining([3]));
+        expect([1, 2, 3]).toContain(2);
+        expect(arr).not.toContain(3);
     `
   )
 })

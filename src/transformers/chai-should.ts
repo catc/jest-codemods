@@ -2,7 +2,6 @@ import {
   chainContainsUtil,
   createCallChainUtil,
   createCallUtil,
-  getExpectNodeUtil,
   getNodeBeforeMemberExpressionUtil,
   updateExpectUtil,
 } from '../utils/chai-chain-utils'
@@ -142,7 +141,6 @@ export default function transformer(fileInfo, api, options) {
   const createCall = createCallUtil(j)
   const chainContains = chainContainsUtil(j)
   const getAllBefore = getNodeBeforeMemberExpressionUtil(j)
-  const getExpectNode = getExpectNodeUtil(j)
   const updateExpect = updateExpectUtil(j)
   const createCallChain = createCallChainUtil(j)
 
@@ -558,27 +556,11 @@ export default function transformer(fileInfo, api, options) {
               return createCall('toMatchObject', args, rest, containsNot)
             }
 
-            const expectNode = getExpectNode(value)
-            if (expectNode != null) {
-              const isExpectParamStringLiteral =
-                expectNode.arguments[0].type === j.Literal.name
-              if (isExpectParamStringLiteral) {
-                return createCall('toContain', args, rest, containsNot)
-              }
-            }
-
             return createCall(
-              'toEqual',
-              [
-                createCallChain(
-                  containsNot
-                    ? ['expect', 'not', 'arrayContaining']
-                    : ['expect', 'arrayContaining'],
-                  [j.arrayExpression(args)]
-                ),
-              ],
+              'toContain',
+              args,
               updateExpect(value, (node) => node),
-              false
+              containsNot
             )
           }
           case 'containing':
