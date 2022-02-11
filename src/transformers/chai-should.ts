@@ -48,6 +48,7 @@ const fns = [
   'match',
   'string',
   'members',
+  'prop',
   'property',
   'ownproperty',
   'ownpropertydescriptor',
@@ -640,6 +641,14 @@ export default function transformer(fileInfo, api, options) {
           case 'lengthof':
           case 'ofsize':
             return createCall('toHaveLength', args, restRaw, containsNot)
+          case 'prop':
+            return createCall(
+              'toHaveProperty',
+              args,
+              updateExpect(value, (node) =>
+                j.callExpression(j.memberExpression(node, j.identifier('props')), [])
+              )
+            )
           case 'property':
             return createCall('toHaveProperty', args, rest, containsNot)
           case 'ownproperty':

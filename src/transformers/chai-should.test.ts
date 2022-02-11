@@ -615,6 +615,23 @@ test('converts "ownpropertydescriptor"', () => {
   )
 })
 
+test('converts "prop"', () => {
+  expectTransformation(
+    `
+        expect(enzymeWrapper).to.have.prop('a');
+        expect(enzymeWrapper).to.have.prop('a', 'b');
+        expect(enzymeWrapper).to.have.prop('a', 2);
+        expect(enzymeWrapper).to.have.prop('a', [1, 2]);
+    `,
+    `
+        expect(enzymeWrapper.props()).toHaveProperty('a');
+        expect(enzymeWrapper.props()).toHaveProperty('a', 'b');
+        expect(enzymeWrapper.props()).toHaveProperty('a', 2);
+        expect(enzymeWrapper.props()).toHaveProperty('a', [1, 2]);
+    `
+  )
+})
+
 test('converts "property"', () => {
   expectTransformation(
     `
