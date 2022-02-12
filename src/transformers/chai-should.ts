@@ -48,7 +48,8 @@ const fns = [
   'match',
   'string',
   'members',
-  'prop',
+  'prop', // chai-enzyme
+  'props', // chai-enzyme
   'property',
   'ownproperty',
   'ownpropertydescriptor',
@@ -649,6 +650,27 @@ export default function transformer(fileInfo, api, options) {
                 j.callExpression(j.memberExpression(node, j.identifier('props')), [])
               )
             )
+          case 'props': {
+            const isPropsList = args[0].type === 'ArrayExpression'
+            return createCall(
+              'toEqual',
+              [
+                createCallChain(
+                  ['expect', isPropsList ? 'arrayContaining' : 'objectContaining'],
+                  args
+                ),
+              ],
+              updateExpect(value, (node) => {
+                const propsCall = j.callExpression(
+                  j.memberExpression(node, j.identifier('props')),
+                  []
+                )
+                return isPropsList
+                  ? createCallChain(['Object', 'keys'], [propsCall])
+                  : propsCall
+              })
+            )
+          }
           case 'property':
             return createCall('toHaveProperty', args, rest, containsNot)
           case 'ownproperty':

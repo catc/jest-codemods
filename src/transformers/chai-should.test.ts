@@ -632,6 +632,19 @@ test('converts "prop"', () => {
   )
 })
 
+test('converts "props"', () => {
+  expectTransformation(
+    `
+        expect(enzymeWrapper).to.have.props(['a', 'b']);
+        expect(enzymeWrapper).to.have.props({ a: 1, b: 2 });
+    `,
+    `
+        expect(Object.keys(enzymeWrapper.props())).toEqual(expect.arrayContaining(['a', 'b']));
+        expect(enzymeWrapper.props()).toEqual(expect.objectContaining({ a: 1, b: 2 }));
+    `
+  )
+})
+
 test('converts "property"', () => {
   expectTransformation(
     `
