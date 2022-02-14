@@ -650,27 +650,33 @@ export default function transformer(fileInfo, api, options) {
                 j.callExpression(j.memberExpression(node, j.identifier('props')), [])
               )
             )
-          case 'props': {
-            const isPropsList = args[0].type === 'ArrayExpression'
-            return createCall(
-              'toEqual',
-              [
-                createCallChain(
-                  ['expect', isPropsList ? 'arrayContaining' : 'objectContaining'],
-                  args
-                ),
-              ],
-              updateExpect(value, (node) => {
-                const propsCall = j.callExpression(
-                  j.memberExpression(node, j.identifier('props')),
-                  []
+          case 'props':
+            if (args[0].type === 'ArrayExpression') {
+              return createCall(
+                'toEqual',
+                [createCallChain(['expect', 'arrayContaining'], args)],
+                updateExpect(value, (node) =>
+                  createCallChain(
+                    ['Object', 'keys'],
+                    [
+                      j.callExpression(
+                        j.memberExpression(node, j.identifier('props')),
+                        []
+                      ),
+                    ]
+                  )
                 )
-                return isPropsList
-                  ? createCallChain(['Object', 'keys'], [propsCall])
-                  : propsCall
-              })
-            )
-          }
+              )
+            } else if (args[0].type === 'ObjectExpression') {
+              return createCall(
+                'toMatchObject',
+                args,
+                updateExpect(value, (node) =>
+                  j.callExpression(j.memberExpression(node, j.identifier('props')), [])
+                )
+              )
+            }
+            break
           case 'property':
             return createCall('toHaveProperty', args, rest, containsNot)
           case 'ownproperty':

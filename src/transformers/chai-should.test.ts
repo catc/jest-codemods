@@ -640,7 +640,7 @@ test('converts "props"', () => {
     `,
     `
         expect(Object.keys(enzymeWrapper.props())).toEqual(expect.arrayContaining(['a', 'b']));
-        expect(enzymeWrapper.props()).toEqual(expect.objectContaining({ a: 1, b: 2 }));
+        expect(enzymeWrapper.props()).toMatchObject({ a: 1, b: 2 });
     `
   )
 })
