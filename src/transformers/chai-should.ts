@@ -527,8 +527,11 @@ export default function transformer(fileInfo, api, options) {
 
         switch (propertyName) {
           case 'eq':
+          case 'eql':
+          case 'eqls':
           case 'equal':
           case 'equals':
+          case 'equalto':
             if (numberOfArgs === 1) {
               const { type } = firstArg
 
@@ -581,9 +584,6 @@ export default function transformer(fileInfo, api, options) {
               updateExpect(value, (node) => node),
               false
             )
-          case 'eql':
-          case 'equalto':
-            return createCall('toEqual', args, rest, containsNot)
           case 'above':
           case 'greaterthan':
           case 'gt':

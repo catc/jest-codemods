@@ -800,6 +800,50 @@ test('converts equal(null) to toBeNull()', () => {
   )
 })
 
+test('converts eq(null) to toBeNull()', () => {
+  expectTransformation(
+    `
+        expect(actual).to.eq(null);
+    `,
+    `
+        expect(actual).toBeNull();
+    `
+  )
+})
+
+test('converts eql(null) to toBeNull()', () => {
+  expectTransformation(
+    `
+        expect(actual).to.eql(null);
+    `,
+    `
+        expect(actual).toBeNull();
+    `
+  )
+})
+
+test('converts eqls(null) to toBeNull()', () => {
+  expectTransformation(
+    `
+        expect(actual).to.be.eqls(null);
+    `,
+    `
+        expect(actual).toBeNull();
+    `
+  )
+})
+
+test('converts equalto(null) to toBeNull()', () => {
+  expectTransformation(
+    `
+        expect(actual).to.be.equalTo(null);
+    `,
+    `
+        expect(actual).toBeNull();
+    `
+  )
+})
+
 test('converts "within"', () => {
   expectTransformation(
     `
