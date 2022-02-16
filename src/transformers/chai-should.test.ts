@@ -206,6 +206,88 @@ test('converts "below"', () => {
   )
 })
 
+test('converts "called"', () => {
+  expectTransformation(
+    `
+        expect(sinonSpy).to.be.called;
+        expect(sinonSpy).not.to.be.called;
+        expect(sinonSpy).to.not.be.called;
+        expect(sinonSpy).to.be.not.called;
+    `,
+    `
+        expect(sinonSpy).toBeCalled();
+        expect(sinonSpy).not.toBeCalled();
+        expect(sinonSpy).not.toBeCalled();
+        expect(sinonSpy).not.toBeCalled();
+    `
+  )
+})
+
+test('converts "callCount"', () => {
+  expectTransformation(
+    `
+        expect(sinonSpy).to.have.callCount(1);
+        expect(sinonSpy).not.to.have.callCount(2);
+    `,
+    `
+        expect(sinonSpy).toBeCalledTimes(1);
+        expect(sinonSpy).not.toBeCalledTimes(2);
+    `
+  )
+})
+
+test('converts "calledOnce"', () => {
+  expectTransformation(
+    `
+        expect(sinonSpy).to.be.calledOnce;
+        expect(sinonSpy).not.to.be.calledOnce;
+    `,
+    `
+        expect(sinonSpy).toBeCalledTimes(1);
+        expect(sinonSpy).not.toBeCalledTimes(1);
+    `
+  )
+})
+
+test('converts "calledTwice"', () => {
+  expectTransformation(
+    `
+        expect(sinonSpy).to.be.calledTwice;
+        expect(sinonSpy).not.to.be.calledTwice;
+    `,
+    `
+        expect(sinonSpy).toBeCalledTimes(2);
+        expect(sinonSpy).not.toBeCalledTimes(2);
+    `
+  )
+})
+
+test('converts "calledThrice"', () => {
+  expectTransformation(
+    `
+        expect(sinonSpy).to.be.calledThrice;
+        expect(sinonSpy).not.to.be.calledThrice;
+    `,
+    `
+        expect(sinonSpy).toBeCalledTimes(3);
+        expect(sinonSpy).not.toBeCalledTimes(3);
+    `
+  )
+})
+
+test('converts "calledWithExactly"', () => {
+  expectTransformation(
+    `
+        expect(sinonSpy).to.be.calledWithExactly(1, 2, 3);
+        expect(sinonSpy).not.to.be.calledWithExactly('a', 'b');
+    `,
+    `
+        expect(sinonSpy).toBeCalledWith(1, 2, 3);
+        expect(sinonSpy).not.toBeCalledWith('a', 'b');
+    `
+  )
+})
+
 test('converts "eql"', () => {
   expectTransformation(
     `

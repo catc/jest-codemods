@@ -31,6 +31,10 @@ const fns = [
   'an',
   'array',
   'below',
+  'callCount', // sinon-chai
+  // 'calledWith', // sinon-chai
+  // 'calledWithMatch', // sinon-chai
+  'calledWithExactly', // sinon-chai
   'contain',
   'containing',
   'containingAllOf',
@@ -71,21 +75,25 @@ const fns = [
 ].map((name) => name.toLowerCase())
 
 const members = [
-  'ok',
-  'true',
-  'false',
-  'extensible',
-  'finite',
-  'function',
-  'frozen',
-  'sealed',
-  'null',
-  'undefined',
-  'exist',
-  'empty',
-  'nan',
+  'called', // sinon-chai
+  'calledOnce', // sinon-chai
+  'calledThrice', // sinon-chai
+  'calledTwice', // sinon-chai
   'defined',
-]
+  'empty',
+  'exist',
+  'extensible',
+  'false',
+  'finite',
+  'frozen',
+  'function',
+  'nan',
+  'null',
+  'ok',
+  'sealed',
+  'true',
+  'undefined',
+].map((name) => name.toLowerCase())
 
 const unsupportedProperties = new Set([
   'arguments',
@@ -386,7 +394,7 @@ export default function transformer(fileInfo, api, options) {
           const { value } = p
           const propertyName = value.property.name.toLowerCase()
 
-          // Reject "ok" when it isn't  proceeded by "to"
+          // Reject "ok" when it isn't proceeded by "to"
           return !(propertyName === 'ok' && !chainContains('to', value, 'to'))
         })
 
@@ -492,6 +500,14 @@ export default function transformer(fileInfo, api, options) {
           }
           case 'function':
             return typeOf(p, value, [j.literal('function')], containsNot)
+          case 'called':
+            return createCall('toBeCalled', [], rest, containsNot)
+          case 'calledonce':
+            return createCall('toBeCalledTimes', [j.literal(1)], rest, containsNot)
+          case 'calledtwice':
+            return createCall('toBeCalledTimes', [j.literal(2)], rest, containsNot)
+          case 'calledthrice':
+            return createCall('toBeCalledTimes', [j.literal(3)], rest, containsNot)
           default:
             return value
         }
@@ -524,6 +540,12 @@ export default function transformer(fileInfo, api, options) {
         const propertyName = value.callee.property.name.toLowerCase()
 
         switch (propertyName) {
+          case 'callcount':
+            return createCall('toBeCalledTimes', args, rest, containsNot)
+          // case 'calledWith':
+          // case 'calledWithMatch':
+          case 'calledwithexactly':
+            return createCall('toBeCalledWith', args, rest, containsNot)
           case 'eq':
           case 'eql':
           case 'eqls':
