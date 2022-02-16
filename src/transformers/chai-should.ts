@@ -32,7 +32,7 @@ const fns = [
   'array',
   'below',
   'callCount', // sinon-chai
-  // 'calledWith', // sinon-chai
+  'calledWith', // sinon-chai
   // 'calledWithMatch', // sinon-chai
   'calledWithExactly', // sinon-chai
   'contain',
@@ -542,7 +542,8 @@ export default function transformer(fileInfo, api, options) {
         switch (propertyName) {
           case 'callcount':
             return createCall('toBeCalledTimes', args, rest, containsNot)
-          // case 'calledWith':
+          case 'calledwith':
+            return createCall('toBeCalledWith', args, rest, containsNot)
           // case 'calledWithMatch':
           case 'calledwithexactly':
             return createCall('toBeCalledWith', args, rest, containsNot)

@@ -275,6 +275,19 @@ test('converts "calledThrice"', () => {
   )
 })
 
+test('converts "calledWith"', () => {
+  expectTransformation(
+    `
+        expect(sinonSpy).to.be.calledWith(1, 2, 3);
+        expect(sinonSpy).not.to.be.calledWith('a', 'b');
+    `,
+    `
+        expect(sinonSpy).toBeCalledWith(1, 2, 3);
+        expect(sinonSpy).not.toBeCalledWith('a', 'b');
+    `
+  )
+})
+
 test('converts "calledWithExactly"', () => {
   expectTransformation(
     `
