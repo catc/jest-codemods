@@ -145,6 +145,7 @@ test('converts "a-an"', () => {
         expect(baz).to.not.be.an('array');
 
         'test'.should.be.a('string');
+        expect(foo).to.be.a('function');
     `,
     `
         expect(typeof 'test').toEqual('string');
@@ -164,6 +165,7 @@ test('converts "a-an"', () => {
         expect(Array.isArray(baz)).toEqual(false);
 
         expect(typeof 'test').toEqual('string');
+        expect(foo).toBeInstanceOf(Function);
     `
   )
 })

@@ -679,16 +679,18 @@ export default function transformer(fileInfo, api, options) {
               containsNot
             )
           case 'a':
-          case 'an':
+          case 'an': {
             if (!args.length) {
               return value
             }
 
-            if (args[0].type === 'Literal') {
+            const t = args[0].type
+            if (t === 'Literal' || t === 'StringLiteral') {
               return typeOf(p, value, args, containsNot)
             }
 
             return createCall('toBeInstanceOf', args, rest, containsNot)
+          }
           case 'instanceof':
             return createCall('toBeInstanceOf', args, rest, containsNot)
           case 'length':
