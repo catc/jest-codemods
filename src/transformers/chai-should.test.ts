@@ -19,6 +19,21 @@ function expectTransformation(source, expectedOutput) {
   expect(consoleWarnings).toEqual([])
 }
 
+test('enzyme-chai: handles descendants', () => {
+  expectTransformation(
+    `
+        expect(wrapper).to.have.exactly(2).descendants(foo);
+        expect(wrapper).to.have.descendants(foo);
+        expect(wrapper).to.not.have.descendants(foo);
+    `,
+    `
+        expect(wrapper.find(foo)).toHaveLength(2);
+        expect(wrapper.find(foo).length).toBeGreaterThan(0);
+        expect(wrapper.find(foo)).toHaveLength(0);
+    `
+  )
+})
+
 test('removes imports and does basic conversions of should and expect', () => {
   expectTransformation(
     `

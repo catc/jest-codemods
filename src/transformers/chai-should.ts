@@ -35,6 +35,7 @@ const fns = [
   'calledWith', // sinon-chai
   'calledWithMatch', // sinon-chai
   'calledWithExactly', // sinon-chai
+  'descendants', // chai-enzyme
   'contain',
   'containing',
   'containingAllOf',
@@ -571,6 +572,48 @@ export default function transformer(fileInfo, api, options) {
         const propertyName = value.callee.property.name.toLowerCase()
 
         switch (propertyName) {
+          case 'descendants': {
+            /* 
+              if (.not) expect(wrapper.find(Foo)).toHaveLength(0)
+              else if (.exactly) expect(wrapper.find(Foo)).toHaveLength(exactly.arg[0])
+              else expect(wrapper.find(Foo).length).toBeGreaterThan(0)
+            */
+
+            let lengthArg
+            if (containsNot) {
+              // for .not, it should always be 0
+              lengthArg = 0
+            } else {
+              // if its an `.exactly`, use as length
+              let path = value.callee
+              // find next call expression
+              while (!path.callee) {
+                path = path.object
+              }
+              if (path.callee?.property?.name === 'exactly') {
+                lengthArg = path.arguments?.[0]?.value
+              }
+            }
+
+            const wrapNodeWithFind = (node) =>
+              j.callExpression(j.memberExpression(node, j.identifier('find')), args)
+
+            if (lengthArg != null) {
+              return createCall(
+                'toHaveLength',
+                [j.literal(lengthArg)],
+                updateExpect(value, wrapNodeWithFind)
+              )
+            }
+
+            return createCall(
+              'toBeGreaterThan',
+              [j.literal(0)],
+              updateExpect(value, (node) =>
+                j.memberExpression(wrapNodeWithFind(node), j.identifier('length'))
+              )
+            )
+          }
           case 'callcount':
             return createCall('toBeCalledTimes', args, rest, containsNot)
           case 'calledwith':
