@@ -33,7 +33,7 @@ const fns = [
   'below',
   'callCount', // sinon-chai
   'calledWith', // sinon-chai
-  // 'calledWithMatch', // sinon-chai
+  'calledWithMatch', // sinon-chai
   'calledWithExactly', // sinon-chai
   'contain',
   'containing',
@@ -515,6 +515,37 @@ export default function transformer(fileInfo, api, options) {
       .size()
   }
 
+  /* 
+    reverses `expect().not.to` -> `expect().to.not`
+    - eg: new file:   frontend/update-test/chai/git.ts
+    TODO - find a better solution or fix the containsNot fn
+  */
+  const updateNotToExpressions = () => {
+    root
+      .find(j.MemberExpression, {
+        property: {
+          type: 'Identifier',
+          name: 'not',
+        },
+        object: {
+          type: 'CallExpression',
+          callee: {
+            type: 'Identifier',
+            name: 'expect',
+          },
+        },
+      })
+      .forEach((np, i) => {
+        const nextInChain = np.parentPath
+        if (nextInChain?.node.property.name === 'to') {
+          np.node.property.name = 'to'
+          nextInChain.node.property.name = 'not'
+        }
+      })
+
+    return 0
+  }
+
   const updateCallExpressions = () =>
     root
       .find(j.CallExpression, {
@@ -544,7 +575,8 @@ export default function transformer(fileInfo, api, options) {
             return createCall('toBeCalledTimes', args, rest, containsNot)
           case 'calledwith':
             return createCall('toBeCalledWith', args, rest, containsNot)
-          // case 'calledWithMatch':
+          case 'calledwithmatch':
+            return createCall('toBeCalledWith', args.map(containing), rest, containsNot)
           case 'calledwithexactly':
             return createCall('toBeCalledWith', args, rest, containsNot)
           case 'eq':
@@ -669,7 +701,8 @@ export default function transformer(fileInfo, api, options) {
               args,
               updateExpect(value, (node) =>
                 j.callExpression(j.memberExpression(node, j.identifier('props')), [])
-              )
+              ),
+              containsNot
             )
           case 'props':
             if (args[0].type === 'ArrayExpression') {
@@ -747,6 +780,7 @@ export default function transformer(fileInfo, api, options) {
           case 'uint32array':
           case 'uint8clampedarray':
             return typeOf(p, value, [{ value: propertyName }], containsNot)
+
           default:
             return value
         }
@@ -770,6 +804,7 @@ export default function transformer(fileInfo, api, options) {
       })
       .size()
 
+  mutations += updateNotToExpressions()
   mutations += shouldChainedToExpect()
   mutations += shouldIdentifierToExpect()
   mutations += updateCallExpressions()

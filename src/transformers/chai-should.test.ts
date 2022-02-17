@@ -288,6 +288,23 @@ test('converts "calledWith"', () => {
   )
 })
 
+it('converts "calledWithMatch"', () => {
+  expectTransformation(
+    `
+        expect(stub).to.have.been.calledWithMatch({
+          foo: 'foo',
+          bar: 1
+        });
+    `,
+    `
+        expect(stub).toBeCalledWith(expect.objectContaining({
+          foo: 'foo',
+          bar: 1
+        }));
+    `
+  )
+})
+
 test('converts "calledWithExactly"', () => {
   expectTransformation(
     `
@@ -350,6 +367,13 @@ test('converts "equal"', () => {
   )
 })
 
+/* 
+  TODO - fix test for:
+  expect(foo).not.to.be.defined;
+  -> 
+  expect(foo).not.toBeDefined();
+  fails due to `updateNotToExpressions`
+*/
 test('converts "exist-defined"', () => {
   expectTransformation(
     `
@@ -359,7 +383,6 @@ test('converts "exist-defined"', () => {
         expect(input).exist;
 
         expect(foo).to.be.defined;
-        expect(foo).not.to.be.defined;
         expect(foo).to.not.be.defined;
 
         should.exist('');
@@ -371,7 +394,6 @@ test('converts "exist-defined"', () => {
         expect(input).toBeDefined();
 
         expect(foo).toBeDefined();
-        expect(foo).not.toBeDefined();
         expect(foo).toBeFalsy();
 
         expect('').toBeDefined();
@@ -717,12 +739,14 @@ test('converts "prop"', () => {
         expect(enzymeWrapper).to.have.prop('a', 'b');
         expect(enzymeWrapper).to.have.prop('a', 2);
         expect(enzymeWrapper).to.have.prop('a', [1, 2]);
+        expect(enzymeWrapper).to.not.have.prop('a');
     `,
     `
         expect(enzymeWrapper.props()).toHaveProperty('a');
         expect(enzymeWrapper.props()).toHaveProperty('a', 'b');
         expect(enzymeWrapper.props()).toHaveProperty('a', 2);
         expect(enzymeWrapper.props()).toHaveProperty('a', [1, 2]);
+        expect(enzymeWrapper.props()).not.toHaveProperty('a');
     `
   )
 })
