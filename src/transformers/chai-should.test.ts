@@ -24,6 +24,7 @@ test('chai-enzyme: handles descendants', () => {
     `
         expect(wrapper).to.have.exactly(2).descendants(foo);
         expect(wrapper).to.have.descendants(foo);
+        expect(wrapper).to.have.descendants('div');
         expect(wrapper).to.not.have.descendants(foo);
     `,
     `
