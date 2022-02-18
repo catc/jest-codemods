@@ -19,7 +19,7 @@ function expectTransformation(source, expectedOutput) {
   expect(consoleWarnings).toEqual([])
 }
 
-test('enzyme-chai: handles descendants', () => {
+test('chai-enzyme: handles descendants', () => {
   expectTransformation(
     `
         expect(wrapper).to.have.exactly(2).descendants(foo);
