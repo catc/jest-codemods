@@ -30,6 +30,7 @@ test('chai-enzyme: handles descendants', () => {
     `
         expect(wrapper.find(foo)).toHaveLength(2);
         expect(wrapper.find(foo).length).toBeGreaterThan(0);
+        expect(wrapper.find('div').length).toBeGreaterThan(0);
         expect(wrapper.find(foo)).toHaveLength(0);
     `
   )
