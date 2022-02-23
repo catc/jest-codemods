@@ -756,9 +756,13 @@ test('converts "null"', () => {
     `
         expect(null).to.be.null;
         expect(undefined).to.not.be.null;
+        expect(undefined).not.to.be.null;
+        expect(undefined).to.be.not.null;
     `,
     `
         expect(null).toBeNull();
+        expect(undefined).not.toBeNull();
+        expect(undefined).not.toBeNull();
         expect(undefined).not.toBeNull();
     `
   )
@@ -997,9 +1001,13 @@ test('converts equal(null) to toBeNull()', () => {
   expectTransformation(
     `
         expect(actual).to.equal(null);
+        expect(actual).not.to.equal(null);
+        expect(actual).to.not.equal(null);
     `,
     `
         expect(actual).toBeNull();
+        expect(actual).not.toBeNull();
+        expect(actual).not.toBeNull();
     `
   )
 })
@@ -1008,9 +1016,13 @@ test('converts eq(null) to toBeNull()', () => {
   expectTransformation(
     `
         expect(actual).to.eq(null);
+        expect(actual).not.to.eq(null);
+        expect(actual).to.not.eq(null);
     `,
     `
         expect(actual).toBeNull();
+        expect(actual).not.toBeNull();
+        expect(actual).not.toBeNull();
     `
   )
 })
@@ -1019,9 +1031,13 @@ test('converts eql(null) to toBeNull()', () => {
   expectTransformation(
     `
         expect(actual).to.eql(null);
+        expect(actual).not.to.eql(null);
+        expect(actual).to.not.eql(null);
     `,
     `
         expect(actual).toBeNull();
+        expect(actual).not.toBeNull();
+        expect(actual).not.toBeNull();
     `
   )
 })
@@ -1030,9 +1046,15 @@ test('converts eqls(null) to toBeNull()', () => {
   expectTransformation(
     `
         expect(actual).to.be.eqls(null);
+        expect(actual).not.to.eqls(null);
+        expect(actual).to.be.not.eqls(null);
+        expect(actual).to.not.be.eqls(null);
     `,
     `
         expect(actual).toBeNull();
+        expect(actual).not.toBeNull();
+        expect(actual).not.toBeNull();
+        expect(actual).not.toBeNull();
     `
   )
 })
@@ -1041,9 +1063,15 @@ test('converts equalto(null) to toBeNull()', () => {
   expectTransformation(
     `
         expect(actual).to.be.equalTo(null);
+        expect(actual).not.to.be.equalTo(null);
+        expect(actual).to.not.be.equalTo(null);
+        expect(actual).to.be.not.equalTo(null);
     `,
     `
         expect(actual).toBeNull();
+        expect(actual).not.toBeNull();
+        expect(actual).not.toBeNull();
+        expect(actual).not.toBeNull();
     `
   )
 })
