@@ -19,6 +19,40 @@ function expectTransformation(source, expectedOutput) {
   expect(consoleWarnings).toEqual([])
 }
 
+test('chai-enzyme: handle .to.contain.keys', () => {
+  expectTransformation(
+    `
+        expect(wrapper.props()).to.contain.keys([
+          'verificationCodeInput',
+          'errorMessage',
+          'verifyEmail',
+          'sendVerificationCode',
+          'updateVerificationCodeInput',
+        ])
+    `,
+    `
+        expect(Object.keys(wrapper.props())).toEqual(expect.arrayContaining([
+          'verificationCodeInput',
+          'errorMessage',
+          'verifyEmail',
+          'sendVerificationCode',
+          'updateVerificationCodeInput',
+        ]))
+    `
+  )
+})
+
+test('chai-enzyme: handles .to.have.type', () => {
+  expectTransformation(
+    `
+        expect(wrapper).to.have.type(MockInnerComponent);
+    `,
+    `
+        expect(wrapper.find(MockInnerComponent).length).toBeGreaterThan(0);
+    `
+  )
+})
+
 test('chai-enzyme: handles descendants', () => {
   expectTransformation(
     `
@@ -886,7 +920,7 @@ it('warns about using chai extensions', () => {
         const chai = require('chai');
         const sinonChai = require('sinon-chai');
         chai.use(sinonChai);
-        `)
+`)
 
   expect(consoleWarnings).toEqual([
     'jest-codemods warning: (test.js line 4) Unsupported Chai Extension "chai.use()"',

@@ -70,6 +70,7 @@ const fns = [
   'props', // chai-enzyme
   'string',
   'throw',
+  'type', // chai-enzyme
   'within',
   // https://www.chaijs.com/plugins/chai-arrays/ plugin:
   // TODO: containingAnyOf
@@ -572,6 +573,7 @@ export default function transformer(fileInfo, api, options) {
         const propertyName = value.callee.property.name.toLowerCase()
 
         switch (propertyName) {
+          case 'type':
           case 'descendants': {
             /* 
               if (.not) expect(wrapper.find(Foo)).toHaveLength(0)
@@ -714,10 +716,10 @@ export default function transformer(fileInfo, api, options) {
               'toEqual',
               [createCallChain(['expect', 'arrayContaining'], parseArgs(args))],
               updateExpect(value, (node) => {
-                if (node.type === j.ObjectExpression.name) {
-                  return createCallChain(['Object', 'keys'], [node])
+                if (node.type === j.ArrayExpression.name) {
+                  return node
                 }
-                return node
+                return createCallChain(['Object', 'keys'], [node])
               }),
               containsNot
             )
