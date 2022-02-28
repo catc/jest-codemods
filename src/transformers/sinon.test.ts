@@ -244,6 +244,20 @@ describe('mock calls', () => {
     )
   })
 
+  it('handles call counts with args', () => {
+    expectTransformation(
+      `
+        import sinon from 'sinon-sandbox'
+        expect(spy.withArgs('foo', bar).called).toBe(true)
+        expect(spy.withArgs('foo', bar).called).toBe(false)
+`,
+      `
+        expect(spy).toHaveBeenCalledWith('foo', bar);
+        expect(spy).not.toHaveBeenCalledWith('foo', bar);
+`
+    )
+  })
+
   it('handles calledWith', () => {
     expectTransformation(
       `
@@ -254,6 +268,45 @@ describe('mock calls', () => {
       `
         expect(spy).toHaveBeenCalledWith(1, 2, 3);
         expect(spy).not.toHaveBeenCalledWith(1, 2, 3);
+`
+    )
+  })
+})
+
+describe('mock timers', () => {
+  it('handles timers', () => {
+    expectTransformation(
+      `
+        import sinon from 'sinon-sandbox'
+        sinon.useFakeTimers()
+        clock.restore()
+        clock.tick(5)
+
+        let clock1
+        beforeEach(() => {
+          foo()
+          clock1 = sinon.useFakeTimers()
+          bar()
+        })
+
+        foo()
+        const clock = sinon.useFakeTimers()
+        bar()
+`,
+      `
+        jest.useFakeTimers()
+        jest.useRealTimers()
+        jest.advanceTimersByTime(5)
+
+        beforeEach(() => {
+          foo()
+          jest.useFakeTimers()
+          bar()
+        })
+
+        foo()
+        jest.useFakeTimers();
+        bar()
 `
     )
   })

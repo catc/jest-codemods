@@ -53,6 +53,19 @@ test('chai-enzyme: handles .to.have.type', () => {
   )
 })
 
+test('chai-enzyme: handles .to.have.state', () => {
+  expectTransformation(
+    `
+        expect(wrapper).to.have.state('loading', false);
+        expect(wrapper).not.to.have.state('loading', false);
+    `,
+    `
+        expect(wrapper.state()).toHaveProperty('loading', false);
+        expect(wrapper.state()).not.toHaveProperty('loading', false);
+    `
+  )
+})
+
 test('chai-enzyme: handles descendants', () => {
   expectTransformation(
     `
@@ -615,12 +628,20 @@ test('converts "keys"', () => {
         expect({ foo: 1, bar: 2 }).to.have.all.keys({ bar: 6, foo: 7 });
         expect({ foo: 1, bar: 2, baz: 3 }).to.contain.all.keys(['bar', 'foo']);
         expect({ foo: 1, bar: 2, baz: 3 }).to.contain.all.keys({ bar: 6 });
+        expect(serverConfig).to.have.all.keys('middleware');
+        expect(actualDispatch).to.include.all.keys('type', 'payload', 'meta');
+        expect(serverConfig).to.include.all.keys('middleware');
+        expect(serverConfig).to.include.all.keys(foo);
     `,
     `
         expect([1, 2, 3]).toEqual(expect.arrayContaining([1, 2]));
         expect(Object.keys({ foo: 1, bar: 2 })).toEqual(expect.arrayContaining(Object.keys({ bar: 6, foo: 7 })));
         expect(Object.keys({ foo: 1, bar: 2, baz: 3 })).toEqual(expect.arrayContaining(['bar', 'foo']));
         expect(Object.keys({ foo: 1, bar: 2, baz: 3 })).toEqual(expect.arrayContaining(Object.keys({ bar: 6 })));
+        expect(Object.keys(serverConfig)).toContain('middleware');
+        expect(Object.keys(actualDispatch)).toEqual(expect.arrayContaining(['type', 'payload', 'meta']));
+        expect(Object.keys(serverConfig)).toContain('middleware');
+        expect(Object.keys(serverConfig)).toContain(foo);
     `
   )
 })

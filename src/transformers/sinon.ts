@@ -2,12 +2,14 @@ import core, { API, FileInfo } from 'jscodeshift'
 
 import finale from '../utils/finale'
 import { removeDefaultImport } from '../utils/imports'
+import { findParentOfType } from '../utils/recast-helpers'
 import {
   createExpectStatement,
   getExpectArg,
   isExpectNegation,
   isExpectSinonCall,
   isExpectSinonObject,
+  modifyVariableDeclaration,
 } from '../utils/sinon-helpers'
 
 const SINON_CALL_COUNT_METHODS = [
@@ -21,7 +23,10 @@ const SINON_CALL_COUNT_METHODS = [
 const TRUE_FALSE_MATCHERS = ['toBe', 'toEqual', 'toBeTruthy', 'toBeFalsy']
 const SINON_CALLED_WITH_METHODS = ['calledWith', 'notCalledWith']
 const SINON_SPY_METHODS = ['spy', 'stub']
-const SINON_MOCK_RESETS = ['restore', 'reset']
+const SINON_MOCK_RESETS = {
+  reset: 'mockReset',
+  restore: 'mockRestore',
+}
 const SINON_MATCHERS = {
   array: 'Array',
   func: 'Function',
@@ -66,8 +71,10 @@ function isInBeforeEachBlock(np) {
   return path.node.callee?.name === 'beforeEach'
 }
 
-//  expect(spy.called).toBe(true) -> expect(spy).toHaveBeenCalled()
-// https://github.com/jordalgo/jest-codemods/blob/7de97c1d0370c7915cf5e5cc2a860bc5dd96744b/src/transformers/sinon.js#L309
+/* 
+  https://github.com/jordalgo/jest-codemods/blob/7de97c1d0370c7915cf5e5cc2a860bc5dd96744b/src/transformers/sinon.js#L309
+  expect(spy.called).toBe(true) -> expect(spy).toHaveBeenCalled()
+*/
 function transformCallCountAssertions(j, ast) {
   ast
     .find(j.ExpressionStatement, {
@@ -89,6 +96,20 @@ function transformCallCountAssertions(j, ast) {
       }
       const createExpect = (method, args?) =>
         createExpectStatement(j, expectArgObject, negation, method, args)
+
+      /* 
+        handle  `expect(spy.withArgs('foo').called).toBe(true)` ->
+                `expect(spy.calledWith(1,2,3)).toBe(true)`
+        and let subsequent transform fn take care of converting to
+        the final form (ie: see `transformCalledWithAssertions`) 
+      */
+      if (expectArgObject.callee?.property?.name === 'withArgs') {
+        // change .withArgs() -> .calledWith()
+        expectArgObject.callee.property.name = 'calledWith'
+        // remove `.called` prop
+        path.value.expression.callee.object.arguments[0] = expectArg.object
+        return path.value
+      }
 
       switch (expectArgSinonMethod) {
         case 'called':
@@ -347,20 +368,13 @@ function transformMockResets(j, ast) {
         type: 'MemberExpression',
         property: {
           type: 'Identifier',
-          name: (name) => SINON_MOCK_RESETS.includes(name),
+          name: (name) => name in SINON_MOCK_RESETS,
         },
       },
     })
     .forEach((np) => {
-      const currentName = np.node.callee.property.name
-      switch (currentName) {
-        case 'restore':
-          np.node.callee.property.name = 'mockRestore'
-          return
-        case 'reset':
-          np.node.callee.property.name = 'mockReset'
-          return
-      }
+      const name = SINON_MOCK_RESETS[np.node.callee.property.name]
+      np.node.callee.property.name = name
     })
 }
 
@@ -414,6 +428,91 @@ function transformMatch(j, ast) {
     })
 }
 
+function transformMockTimers(j, ast) {
+  // sinon.useFakeTimers() -> jest.useFakeTimers()
+  ast
+    .find(j.CallExpression, {
+      callee: {
+        object: {
+          name: 'sinon',
+        },
+        property: {
+          name: 'useFakeTimers',
+        },
+      },
+    })
+    .forEach((np) => {
+      const { node } = np
+      node.callee.object.name = 'jest'
+
+      // if `const clock = sinon.useFakeTimers()`, remove variable dec
+      const parentAssignment =
+        findParentOfType(np, j.VariableDeclaration.name) ||
+        findParentOfType(np, j.AssignmentExpression.name)
+
+      if (parentAssignment) {
+        if (parentAssignment.value?.type === j.AssignmentExpression.name) {
+          const varName = parentAssignment.value.left?.name
+          // debug(parentAssignment)
+
+          // clock = sinon.useFakeTimers() -> sinon.useFakeTimers()
+          parentAssignment.parentPath.value.expression = node
+
+          // remove global variable declaration
+          const varNp = np.scope.lookup(varName).getBindings()?.[varName]?.[0]
+          if (varNp) {
+            modifyVariableDeclaration(varNp, null)
+          }
+
+          // const clock = sinon.useFakeTimers() -> sinon.useFakeTimers()
+        } else if (parentAssignment.parentPath.name === 'body') {
+          modifyVariableDeclaration(np, j.expressionStatement(node))
+        }
+      }
+    })
+
+  // clock.tick(n) -> jest.advanceTimersByTime(n)
+  ast
+    .find(j.CallExpression, {
+      callee: {
+        object: {
+          type: 'Identifier',
+        },
+        property: {
+          name: 'tick',
+        },
+      },
+    })
+    .forEach((np) => {
+      const { node } = np
+      node.callee.object.name = 'jest'
+      node.callee.property.name = 'advanceTimersByTime'
+    })
+
+  /* 
+    `stub.restore` shares the same property name as `sinon.useFakeTimers().restore`
+    so only transform those with `clock` object which seems to be the common name used
+    for mock timers throughout our codebase
+  */
+  // clock.restore() -> jest.useRealTimers()
+  ast
+    .find(j.CallExpression, {
+      callee: {
+        object: {
+          name: 'clock',
+        },
+        property: {
+          name: 'restore',
+        },
+      },
+    })
+    .forEach((np) => {
+      const { node } = np
+      node.callee.object.name = 'jest'
+      node.callee.property.name = 'useRealTimers'
+    })
+}
+
 export default function transformer(fileInfo: FileInfo, api: API, options) {
   const j = api.jscodeshift
   const ast = j(fileInfo.source)
@@ -429,6 +528,7 @@ export default function transformer(fileInfo: FileInfo, api: API, options) {
   }
 
   transformStub(j, ast, sinonExpression)
+  transformMockTimers(j, ast)
   transformMock(j, ast)
   transformMockResets(j, ast)
   transformCallCountAssertions(j, ast)

@@ -68,6 +68,7 @@ const fns = [
   'prop', // chai-enzyme
   'property',
   'props', // chai-enzyme
+  'state', // chai-enzyme
   'string',
   'throw',
   'type', // chai-enzyme
@@ -651,6 +652,15 @@ export default function transformer(fileInfo, api, options) {
             return createCall('toThrowError', args, rest, containsNot)
           case 'string':
             return createCall('toContain', args, rest, containsNot)
+          case 'state':
+            return createCall(
+              'toHaveProperty',
+              args,
+              updateExpect(value, (node) =>
+                j.callExpression(j.memberExpression(node, j.identifier('state')), [])
+              ),
+              containsNot
+            )
           case 'include':
           case 'includes':
           case 'contain':
@@ -706,23 +716,36 @@ export default function transformer(fileInfo, api, options) {
             }
 
             return createCall('toEqual', args.map(containing), rest, containsNot)
-          case 'keys':
+          case 'keys': {
             if (containsAny) {
               logWarning('Unsupported Chai Assertion "any.keys"', p)
               return value
             }
 
+            const updateExpectFn = updateExpect(value, (node) => {
+              if (node.type === j.ArrayExpression.name) {
+                return node
+              }
+              return createCallChain(['Object', 'keys'], [node])
+            })
+
+            // handle single arguments, eg: `expect(serverConfig).to.have.all.keys('middleware')`
+            if (
+              args.length === 1 &&
+              [j.Literal.name, j.StringLiteral.name, j.Identifier.name].includes(
+                args[0].type
+              )
+            ) {
+              return createCall('toContain', args, updateExpectFn, containsNot)
+            }
+
             return createCall(
               'toEqual',
               [createCallChain(['expect', 'arrayContaining'], parseArgs(args))],
-              updateExpect(value, (node) => {
-                if (node.type === j.ArrayExpression.name) {
-                  return node
-                }
-                return createCallChain(['Object', 'keys'], [node])
-              }),
+              updateExpectFn,
               containsNot
             )
+          }
           case 'a':
           case 'an': {
             if (!args.length) {

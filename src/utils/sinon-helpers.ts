@@ -1,3 +1,5 @@
+import { findParentOfType } from './recast-helpers'
+
 export function isExpectSinonCall(obj, sinonMethods) {
   if (obj.type === 'CallExpression' && obj.callee.name === 'expect') {
     const args = obj.arguments
@@ -61,4 +63,13 @@ export function createExpectStatement(j, expectArg, negation, assertMethod, asse
       assertArgs ? assertArgs : []
     )
   )
+}
+
+export function modifyVariableDeclaration(nodePath, newNodePath) {
+  const varDec = findParentOfType(nodePath, 'VariableDeclaration')
+  varDec.parentPath.value.forEach((n, i) => {
+    if (varDec.value === n) {
+      varDec.parentPath.value[i] = newNodePath
+    }
+  })
 }
