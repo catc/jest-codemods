@@ -19,6 +19,17 @@ function expectTransformation(source, expectedOutput) {
   expect(consoleWarnings).toEqual([])
 }
 
+test('chai-enzyme: handle .to.be.present', () => {
+  expectTransformation(
+    `
+        expect(wrapper).to.be.present()
+    `,
+    `
+        expect(wrapper.length).toBeGreaterThan(0)
+    `
+  )
+})
+
 test('chai-enzyme: handle .to.contain.keys', () => {
   expectTransformation(
     `

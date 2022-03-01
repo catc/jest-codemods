@@ -66,6 +66,7 @@ const fns = [
   'ofSize',
   'ownproperty',
   'ownpropertydescriptor',
+  'present', // chai-enzyme
   'prop', // chai-enzyme
   'property',
   'props', // chai-enzyme
@@ -799,6 +800,15 @@ export default function transformer(fileInfo, api, options) {
               )
             }
             break
+          case 'present':
+            return createCall(
+              'toBeGreaterThan',
+              [j.literal(0)],
+              updateExpect(value, (node) =>
+                j.memberExpression(node, j.identifier('length'))
+              ),
+              containsNot
+            )
           case 'property':
             return createCall('toHaveProperty', args, rest, containsNot)
           case 'ownproperty':

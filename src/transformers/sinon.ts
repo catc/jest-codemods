@@ -90,7 +90,7 @@ function transformCallCountAssertions(j, ast) {
       callee: {
         type: j.MemberExpression.name,
         property: {
-          name: (name) => CHAI_CHAIN_MATCHERS.has(name.toLowerCase()),
+          name: (name) => CHAI_CHAIN_MATCHERS.has(name.toLowerCase?.()),
         },
         object: (node) =>
           isExpectSinonObject(node, SINON_CALL_COUNT_METHODS) &&
@@ -167,7 +167,7 @@ function transformCalledWithAssertions(j, ast) {
       callee: {
         type: j.MemberExpression.name,
         property: {
-          name: (name) => CHAI_CHAIN_MATCHERS.has(name.toLowerCase()),
+          name: (name) => CHAI_CHAIN_MATCHERS.has(name.toLowerCase?.()),
         },
         object: (node) =>
           isExpectSinonCall(node, SINON_CALLED_WITH_METHODS) && isExpectCallUtil(j, node),
@@ -494,7 +494,6 @@ function transformMockTimers(j, ast) {
       if (parentAssignment) {
         if (parentAssignment.value?.type === j.AssignmentExpression.name) {
           const varName = parentAssignment.value.left?.name
-          // debug(parentAssignment)
 
           // clock = sinon.useFakeTimers() -> sinon.useFakeTimers()
           parentAssignment.parentPath.value.expression = node
