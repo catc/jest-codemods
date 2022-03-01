@@ -3,6 +3,7 @@ import {
   createCallChainUtil,
   createCallUtil,
   getNodeBeforeMemberExpressionUtil,
+  isExpectCallUtil,
   updateExpectUtil,
 } from '../utils/chai-chain-utils'
 import finale from '../utils/finale'
@@ -189,10 +190,7 @@ export default function transformer(fileInfo, api, options) {
     mutations += 1
   }
 
-  const isExpectCall = (node) =>
-    node.name === 'expect' ||
-    (node.type === j.MemberExpression.name && isExpectCall(node.object)) ||
-    (node.type === j.CallExpression.name && isExpectCall(node.callee))
+  const isExpectCall = (node) => isExpectCallUtil(j, node)
 
   const typeOf = (path, value, args, containsNot) => {
     switch (args[0].value) {
