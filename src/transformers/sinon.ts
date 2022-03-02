@@ -1,12 +1,16 @@
 import core, { API, FileInfo } from 'jscodeshift'
 
+import {
+  chainContainsUtil,
+  createCallUtil,
+  getNodeBeforeMemberExpressionUtil,
+  isExpectCallUtil,
+} from '../utils/chai-chain-utils'
 import finale from '../utils/finale'
 import { removeDefaultImport } from '../utils/imports'
 import { findParentOfType } from '../utils/recast-helpers'
 import {
-  createExpectStatement,
   getExpectArg,
-  isExpectNegation,
   isExpectSinonCall,
   isExpectSinonObject,
   modifyVariableDeclaration,
@@ -20,7 +24,7 @@ const SINON_CALL_COUNT_METHODS = [
   'callCount',
   'notCalled',
 ]
-const TRUE_FALSE_MATCHERS = ['toBe', 'toEqual', 'toBeTruthy', 'toBeFalsy']
+const CHAI_CHAIN_MATCHERS = new Set(['be', 'eq', 'eql', 'equal'])
 const SINON_CALLED_WITH_METHODS = ['calledWith', 'notCalledWith']
 const SINON_SPY_METHODS = ['spy', 'stub']
 const SINON_MOCK_RESETS = {
@@ -41,6 +45,7 @@ const SINON_MATCHERS_WITH_ARGS = {
   object: 'object',
   string: 'string',
 }
+const EXPECT_PREFIXES = new Set(['to'])
 
 function getEndofStatement(np) {
   const rootPath = np.scope.getGlobalScope().path
@@ -72,92 +77,128 @@ function isInBeforeEachBlock(np) {
 }
 
 /* 
-  https://github.com/jordalgo/jest-codemods/blob/7de97c1d0370c7915cf5e5cc2a860bc5dd96744b/src/transformers/sinon.js#L309
-  expect(spy.called).toBe(true) -> expect(spy).toHaveBeenCalled()
+  expect(spy.called).to.be(true) -> expect(spy).toHaveBeenCalled()
+  expect(spy.callCount).to.equal(2) -> expect(spy).toHaveBeenCalledTimes(2)
 */
 function transformCallCountAssertions(j, ast) {
+  const chainContains = chainContainsUtil(j)
+  const getAllBefore = getNodeBeforeMemberExpressionUtil(j)
+  const createCall = createCallUtil(j)
+
   ast
-    .find(j.ExpressionStatement, {
-      expression: {
-        callee: {
-          type: 'MemberExpression',
-          property: (node) => TRUE_FALSE_MATCHERS.includes(node.name),
-          object: (obj) => isExpectSinonObject(obj, SINON_CALL_COUNT_METHODS),
+    .find(j.CallExpression, {
+      callee: {
+        type: j.MemberExpression.name,
+        property: {
+          name: (name) => CHAI_CHAIN_MATCHERS.has(name.toLowerCase?.()),
         },
+        object: (node) =>
+          isExpectSinonObject(node, SINON_CALL_COUNT_METHODS) &&
+          isExpectCallUtil(j, node),
       },
     })
-    .replaceWith((path) => {
-      const expectArg = getExpectArg(path.value.expression.callee.object)
-      const expectArgObject = expectArg.object
-      const expectArgSinonMethod = expectArg.property.name
-      let negation = isExpectNegation(path.value)
-      if (expectArgSinonMethod === 'notCalled') {
-        negation = !negation
-      }
-      const createExpect = (method, args?) =>
-        createExpectStatement(j, expectArgObject, negation, method, args)
+    .replaceWith((np) => {
+      const { node } = np
+      const expectArg = getExpectArg(node.callee)
+
+      // remove .called/.callCount/etc prop from expect argument
+      // eg: expect(Api.get.callCount) -> expect(Api.get)
+      j(np)
+        .find(j.CallExpression, {
+          callee: { name: 'expect' },
+        })
+        .forEach((np) => {
+          np.node.arguments = [expectArg.object]
+        })
 
       /* 
-        handle  `expect(spy.withArgs('foo').called).toBe(true)` ->
-                `expect(spy.calledWith(1,2,3)).toBe(true)`
-        and let subsequent transform fn take care of converting to
-        the final form (ie: see `transformCalledWithAssertions`) 
-      */
-      if (expectArgObject.callee?.property?.name === 'withArgs') {
+          handle  `expect(spy.withArgs('foo').called).to.be(true)` ->
+                  `expect(spy.calledWith(1,2,3)).to.be(true)`
+          and let subsequent transform fn take care of converting to
+          the final form (ie: see `transformCalledWithAssertions`) 
+        */
+      if (expectArg.object.callee?.property?.name === 'withArgs') {
         // change .withArgs() -> .calledWith()
-        expectArgObject.callee.property.name = 'calledWith'
-        // remove `.called` prop
-        path.value.expression.callee.object.arguments[0] = expectArg.object
-        return path.value
+        expectArg.object.callee.property.name = 'calledWith'
+        return node
       }
 
+      const expectArgSinonMethod = expectArg.property.name
+
+      const isPrefix = (name) => EXPECT_PREFIXES.has(name)
+      const negated =
+        chainContains('not', node.callee, isPrefix) || node.arguments?.[0].value === false // eg: .to.be(false)
+      const rest = getAllBefore(isPrefix, node.callee, 'should')
+
       switch (expectArgSinonMethod) {
-        case 'called':
-        case 'calledOnce':
         case 'notCalled':
-          return createExpect('toHaveBeenCalled')
+          return createCall('toHaveBeenCalled', [], rest, !negated)
         case 'calledTwice':
-          return createExpect('toHaveBeenCalledTimes', [j.literal(2)])
+          return createCall('toHaveBeenCalledTimes', [j.literal(2)], rest, negated)
+        case 'calledOnce':
+          return createCall('toHaveBeenCalledTimes', [j.literal(1)], rest, negated)
+        case 'called':
         case 'calledThrice':
-          return createExpect('toHaveBeenCalledTimes', [j.literal(3)])
+          return createCall('toHaveBeenCalled', [], rest, negated)
         default:
-          // callCount
-          return createExpect('toHaveBeenCalledTimes', path.value.expression.arguments)
+          // eg: .callCount
+          return createCall(
+            'toHaveBeenCalledTimes',
+            node.arguments.length ? [node.arguments[0]] : [],
+            rest,
+            negated
+          )
       }
     })
 }
 
-//  expect(spy.calledWith(1, 2, 3)).toBe(true) -> expect(spy).toHaveBeenCalledWith(1, 2, 3);
-// https://github.com/jordalgo/jest-codemods/blob/7de97c1d0370c7915cf5e5cc2a860bc5dd96744b/src/transformers/sinon.js#L267
+/* 
+  expect(spy.calledWith(1, 2, 3)).to.be(true) -> expect(spy).toHaveBeenCalledWith(1, 2, 3);
+
+  https://github.com/jordalgo/jest-codemods/blob/7de97c1d0370c7915cf5e5cc2a860bc5dd96744b/src/transformers/sinon.js#L267
+*/
 function transformCalledWithAssertions(j, ast) {
+  const chainContains = chainContainsUtil(j)
+  const getAllBefore = getNodeBeforeMemberExpressionUtil(j)
+  const createCall = createCallUtil(j)
+
   ast
-    .find(j.ExpressionStatement, {
-      expression: {
-        callee: {
-          type: 'MemberExpression',
-          property: (node) => TRUE_FALSE_MATCHERS.includes(node.name),
-          object: (obj) => isExpectSinonCall(obj, SINON_CALLED_WITH_METHODS),
+    .find(j.CallExpression, {
+      callee: {
+        type: j.MemberExpression.name,
+        property: {
+          name: (name) => CHAI_CHAIN_MATCHERS.has(name.toLowerCase?.()),
         },
+        object: (node) =>
+          isExpectSinonCall(node, SINON_CALLED_WITH_METHODS) && isExpectCallUtil(j, node),
       },
     })
-    .replaceWith((path) => {
-      const expectArg = getExpectArg(path.value.expression.callee.object)
-      const expectArgObject = expectArg.callee.object
-      const expectArgSinonMethod = expectArg.callee.property.name
-      let negation = isExpectNegation(path.value)
-      if (expectArgSinonMethod === 'notCalledWith') {
-        negation = !negation
-      }
+    .replaceWith((np) => {
+      const { node } = np
+      const expectArg = getExpectArg(node.callee)
 
-      const createExpect = (method, args) =>
-        createExpectStatement(j, expectArgObject, negation, method, args)
+      // remove .calledWith() call from expect argument
+      j(np)
+        .find(j.CallExpression, {
+          callee: { name: 'expect' },
+        })
+        .forEach((np) => {
+          np.node.arguments = [expectArg.callee.object]
+        })
+
+      const expectArgSinonMethod = expectArg.callee?.property?.name
+      const isPrefix = (name) => EXPECT_PREFIXES.has(name)
+      const negated =
+        chainContains('not', node.callee, isPrefix) || node.arguments?.[0].value === false // eg: .to.be(false)
+      const rest = getAllBefore(isPrefix, node.callee, 'should')
 
       switch (expectArgSinonMethod) {
         case 'calledWith':
+          return createCall('toHaveBeenCalledWith', expectArg.arguments, rest, negated)
         case 'notCalledWith':
-          return createExpect('toHaveBeenCalledWith', expectArg.arguments)
+          return createCall('toHaveBeenCalledWith', expectArg.arguments, rest, !negated)
         default:
-          return path.value
+          return node
       }
     })
 }
@@ -239,7 +280,7 @@ function transformStub(j: core.JSCodeshift, ast, sinonExpression) {
 }
 
 function transformMock(j: core.JSCodeshift, ast) {
-  // // stub.withArgs(111).returns('foo') => stub.mockImplementation(a1 => {if (a1 === '111') return 'foo' })
+  // stub.withArgs(111).returns('foo') => stub.mockImplementation((...args) => { if (args[0] === '111') return 'foo' })
   ast
     .find(j.CallExpression, {
       callee: {
@@ -337,10 +378,10 @@ function transformMock(j: core.JSCodeshift, ast) {
 }
 
 /* 
-handles mock resets/clears/etc:
-sinon.restore() -> jest.restoreAllMocks()
-stub.restore() -> stub.mockRestore()
-stub.reset() -> stub.mockReset()
+  handles mock resets/clears/etc:
+  sinon.restore() -> jest.restoreAllMocks()
+  stub.restore() -> stub.mockRestore()
+  stub.reset() -> stub.mockReset()
 */
 function transformMockResets(j, ast) {
   ast
@@ -453,7 +494,6 @@ function transformMockTimers(j, ast) {
       if (parentAssignment) {
         if (parentAssignment.value?.type === j.AssignmentExpression.name) {
           const varName = parentAssignment.value.left?.name
-          // debug(parentAssignment)
 
           // clock = sinon.useFakeTimers() -> sinon.useFakeTimers()
           parentAssignment.parentPath.value.expression = node

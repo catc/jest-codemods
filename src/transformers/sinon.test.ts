@@ -225,21 +225,65 @@ describe('sinon.match', () => {
   })
 })
 
-describe('mock calls', () => {
-  it('handles call counts', () => {
+describe('spy count and call assertions', () => {
+  it('handles call count assertions', () => {
     expectTransformation(
       `
         import sinon from 'sinon-sandbox'
-        expect(spy.called).toBe(true)
-        expect(spy.called).toBe(false)
-        expect(logSignupLaunchedFromNav.called).toEqual(true);
-        expect(logSignupLaunchedFromNav.called).toEqual(false);
+
+        // basic cases
+        expect(Api.get.callCount).to.equal(1)
+        expect(spy.callCount).to.equal(1)
+
+        expect(Api.get.called).to.equal(true)
+        expect(spy.called).to.equal(true)
+
+        expect(spy.calledOnce).to.equal(true)
+        expect(spy.calledTwice).to.equal(true)
+        expect(spy.calledThrice).to.equal(true)
+        expect(spy.called).to.equal(true)
+
+        // .to.be
+        expect(Api.get.callCount).to.be(1)
+        expect(Api.get.called).to.be(true)
+        expect(Api.get.called).to.be(false)
+
+        // .not + neg cases
+        expect(Api.get.callCount).not.to.equal(1)
+        expect(spy.called).not.to.be(true)
+        expect(spy.callCount).not.to.be(1)
+        expect(spy.called).to.be(false)
+
+        // .notCalled cases
+        expect(spy.notCalled).to.equal(true);
+        expect(spy.notCalled).to.equal(false);
 `,
       `
-        expect(spy).toHaveBeenCalled();
+        expect(Api.get).toHaveBeenCalledTimes(1);
+        expect(spy).toHaveBeenCalledTimes(1)
+
+        expect(Api.get).toHaveBeenCalled()
+        expect(spy).toHaveBeenCalled()
+
+        expect(spy).toHaveBeenCalledTimes(1)
+        expect(spy).toHaveBeenCalledTimes(2)
+        expect(spy).toHaveBeenCalled()
+        expect(spy).toHaveBeenCalled()
+
+        // .to.be
+        expect(Api.get).toHaveBeenCalledTimes(1)
+        expect(Api.get).toHaveBeenCalled()
+        expect(Api.get).not.toHaveBeenCalled()
+
+        // .not + neg cases
+        expect(Api.get).not.toHaveBeenCalledTimes(1)
+        expect(spy).not.toHaveBeenCalled()
+        expect(spy).not.toHaveBeenCalledTimes(1)
+        expect(spy).not.toHaveBeenCalled()
+
+        // .notCalled cases
         expect(spy).not.toHaveBeenCalled();
-        expect(logSignupLaunchedFromNav).toHaveBeenCalled();
-        expect(logSignupLaunchedFromNav).not.toHaveBeenCalled();
+        expect(spy).toHaveBeenCalled();
 `
     )
   })
@@ -248,12 +292,12 @@ describe('mock calls', () => {
     expectTransformation(
       `
         import sinon from 'sinon-sandbox'
-        expect(spy.withArgs('foo', bar).called).toBe(true)
-        expect(spy.withArgs('foo', bar).called).toBe(false)
+        expect(spy.withArgs('foo', bar).called).to.be(true)
+        expect(spy.withArgs('foo', bar).called).to.be(false)
 `,
       `
-        expect(spy).toHaveBeenCalledWith('foo', bar);
-        expect(spy).not.toHaveBeenCalledWith('foo', bar);
+        expect(spy).toHaveBeenCalledWith('foo', bar)
+        expect(spy).not.toHaveBeenCalledWith('foo', bar)
 `
     )
   })
@@ -262,12 +306,16 @@ describe('mock calls', () => {
     expectTransformation(
       `
         import sinon from 'sinon-sandbox'
-        expect(spy.calledWith(1, 2, 3)).toBe(true)
-        expect(spy.notCalledWith(1, 2, 3)).toBe(true)
+        expect(spy.calledWith(1, 2, 3)).to.be(true)
+        expect(spy.notCalledWith(1, 2, 3)).to.be(true)
+        expect(spy.calledWith(foo, 'bar')).to.be(false)
+        expect(spy.notCalledWith(foo, 'bar')).to.be(false)
 `,
       `
-        expect(spy).toHaveBeenCalledWith(1, 2, 3);
-        expect(spy).not.toHaveBeenCalledWith(1, 2, 3);
+        expect(spy).toHaveBeenCalledWith(1, 2, 3)
+        expect(spy).not.toHaveBeenCalledWith(1, 2, 3)
+        expect(spy).not.toHaveBeenCalledWith(foo, 'bar')
+        expect(spy).toHaveBeenCalledWith(foo, 'bar')
 `
     )
   })
