@@ -208,7 +208,9 @@ test('converts "a-an"', () => {
         expect({ foo: 'bar' }).to.be.an(Object);
         expect('xyz').to.be.a(String);
         expect(null).to.be.a('null');
+        expect(null).to.not.be.a('null');
         expect(undefined).to.be.an('undefined');
+        expect(undefined).not.to.be.an('undefined');
         expect(new Error()).to.be.an('error');
         expect(new Promise()).to.be.a('promise');
         expect(new Float32Array()).to.be.a('float32array');
@@ -228,7 +230,9 @@ test('converts "a-an"', () => {
         expect({ foo: 'bar' }).toBeInstanceOf(Object);
         expect('xyz').toBeInstanceOf(String);
         expect(null).toBeNull();
+        expect(null).not.toBeNull();
         expect(undefined).toBeUndefined();
+        expect(undefined).not.toBeUndefined();
         expect(new Error()).toBeInstanceOf(Error);
         expect(new Promise()).toBeInstanceOf(Promise);
         expect(new Float32Array()).toBeInstanceOf(Float32Array);
