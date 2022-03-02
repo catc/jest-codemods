@@ -280,7 +280,7 @@ function transformStub(j: core.JSCodeshift, ast, sinonExpression) {
 }
 
 function transformMock(j: core.JSCodeshift, ast) {
-  // stub.withArgs(111).returns('foo') => stub.mockImplementation(a1 => {if (a1 === '111') return 'foo' })
+  // stub.withArgs(111).returns('foo') => stub.mockImplementation((...args) => { if (args[0] === '111') return 'foo' })
   ast
     .find(j.CallExpression, {
       callee: {
