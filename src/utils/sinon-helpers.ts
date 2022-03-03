@@ -47,3 +47,32 @@ export function modifyVariableDeclaration(nodePath, newNodePath) {
     }
   })
 }
+
+export function getEndofStatement(np) {
+  const rootPath = np.scope.getGlobalScope().path
+  let path = np.parentPath
+  let levels = 0
+  // get end of expression
+  while (
+    path !== rootPath &&
+    path.node.type !== 'ExpressionStatement' &&
+    path.node.type !== 'VariableDeclarator'
+  ) {
+    path = path.parentPath
+    levels++
+  }
+
+  return { path, levels }
+}
+
+export function isInBeforeEachBlock(np) {
+  const rootPath = np.scope.getGlobalScope().path
+  let { path } = getEndofStatement(np)
+
+  // find first call expression and check if name is `beforeEach`
+  while (path !== rootPath && path.node.type !== 'CallExpression') {
+    path = path.parentPath
+  }
+
+  return path.node.callee?.name === 'beforeEach'
+}

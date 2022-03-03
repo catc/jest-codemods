@@ -10,9 +10,11 @@ import finale from '../utils/finale'
 import { removeDefaultImport } from '../utils/imports'
 import { findParentOfType } from '../utils/recast-helpers'
 import {
+  getEndofStatement,
   getExpectArg,
   isExpectSinonCall,
   isExpectSinonObject,
+  isInBeforeEachBlock,
   modifyVariableDeclaration,
 } from '../utils/sinon-helpers'
 
@@ -24,7 +26,11 @@ const SINON_CALL_COUNT_METHODS = [
   'callCount',
   'notCalled',
 ]
-const CHAI_CHAIN_MATCHERS = new Set(['be', 'eq', 'eql', 'equal'])
+const CHAI_CHAIN_MATCHERS = new Set(
+  ['be', 'eq', 'eql', 'equal', 'toBe', 'toEqual', 'toBeTruthy', 'toBeFalsy'].map((a) =>
+    a.toLowerCase()
+  )
+)
 const SINON_CALLED_WITH_METHODS = ['calledWith', 'notCalledWith']
 const SINON_SPY_METHODS = ['spy', 'stub']
 const SINON_MOCK_RESETS = {
@@ -45,36 +51,8 @@ const SINON_MATCHERS_WITH_ARGS = {
   object: 'object',
   string: 'string',
 }
+const SINON_NTH_CALLS = new Set(['firstCall', 'secondCall', 'thirdCall', 'lastCall'])
 const EXPECT_PREFIXES = new Set(['to'])
-
-function getEndofStatement(np) {
-  const rootPath = np.scope.getGlobalScope().path
-  let path = np.parentPath
-  let levels = 0
-  // get end of expression
-  while (
-    path !== rootPath &&
-    path.node.type !== 'ExpressionStatement' &&
-    path.node.type !== 'VariableDeclarator'
-  ) {
-    path = path.parentPath
-    levels++
-  }
-
-  return { path, levels }
-}
-
-function isInBeforeEachBlock(np) {
-  const rootPath = np.scope.getGlobalScope().path
-  let { path } = getEndofStatement(np)
-
-  // find first call expression and check if name is `beforeEach`
-  while (path !== rootPath && path.node.type !== 'CallExpression') {
-    path = path.parentPath
-  }
-
-  return path.node.callee?.name === 'beforeEach'
-}
 
 /* 
   expect(spy.called).to.be(true) -> expect(spy).toHaveBeenCalled()
@@ -279,6 +257,76 @@ function transformStub(j: core.JSCodeshift, ast, sinonExpression) {
     })
 }
 
+/*
+  stub.getCall(0) -> stub.mock.calls[0]
+  stub.getCall(0).args[1] -> stub.mock.calls[0][1]
+  stub.firstCall|lastCall|thirdCall|secondCall -> stub.mock.calls[n]
+*/
+function transformStubGetCalls(j, ast) {
+  // transform .getCall
+  ast
+    .find(j.CallExpression, {
+      callee: {
+        property: {
+          name: 'getCall',
+        },
+      },
+    })
+    .replaceWith((np) => {
+      const { node } = np
+      const callIndex = node.arguments[0]
+      return j.memberExpression(
+        j.memberExpression(
+          j.memberExpression(node.callee.object, j.identifier('mock')),
+          j.identifier('calls')
+        ),
+        callIndex
+      )
+    })
+
+  // transform .args[0] expression
+  ast
+    // match on .args, not the more specific .args[n]
+    .find(j.MemberExpression, {
+      property: {
+        name: 'args',
+      },
+    })
+    .replaceWith((np) => {
+      return np.node.object
+    })
+
+  // transform .nthCall
+  ast
+    .find(j.MemberExpression, {
+      property: {
+        name: (name) => SINON_NTH_CALLS.has(name),
+      },
+    })
+    .replaceWith((np) => {
+      const { node } = np
+      const { name } = node.property
+
+      const createMockCall = (n) => {
+        const nth = j.literal(n)
+        return j.memberExpression(j.memberExpression(node, j.identifier('calls')), nth)
+      }
+
+      node.property.name = 'mock'
+      switch (name) {
+        case 'firstCall':
+          return createMockCall(0)
+        case 'secondCall':
+          return createMockCall(1)
+        case 'thirdCall':
+          return createMockCall(2)
+        case 'lastCall':
+          return j.memberExpression(node, j.identifier('lastCall'))
+      }
+      return node
+    })
+}
+
 function transformMock(j: core.JSCodeshift, ast) {
   // stub.withArgs(111).returns('foo') => stub.mockImplementation((...args) => { if (args[0] === '111') return 'foo' })
   ast
@@ -471,6 +519,7 @@ function transformMatch(j, ast) {
 
 function transformMockTimers(j, ast) {
   // sinon.useFakeTimers() -> jest.useFakeTimers()
+  // sinon.useFakeTimers(new Date(...)) -> jest.useFakeTimers().setSystemTime(new Date(...))
   ast
     .find(j.CallExpression, {
       callee: {
@@ -483,8 +532,18 @@ function transformMockTimers(j, ast) {
       },
     })
     .forEach((np) => {
-      const { node } = np
+      let { node } = np
       node.callee.object.name = 'jest'
+
+      // handle real system time
+      if (node.arguments?.length) {
+        const args = node.arguments
+        node.arguments = []
+        node = j.callExpression(
+          j.memberExpression(node, j.identifier('setSystemTime')),
+          args
+        )
+      }
 
       // if `const clock = sinon.useFakeTimers()`, remove variable dec
       const parentAssignment =
@@ -492,6 +551,7 @@ function transformMockTimers(j, ast) {
         findParentOfType(np, j.AssignmentExpression.name)
 
       if (parentAssignment) {
+        // clock = sinon.useFakeTimers()
         if (parentAssignment.value?.type === j.AssignmentExpression.name) {
           const varName = parentAssignment.value.left?.name
 
@@ -499,7 +559,7 @@ function transformMockTimers(j, ast) {
           parentAssignment.parentPath.value.expression = node
 
           // remove global variable declaration
-          const varNp = np.scope.lookup(varName).getBindings()?.[varName]?.[0]
+          const varNp = np.scope.lookup(varName)?.getBindings()?.[varName]?.[0]
           if (varNp) {
             modifyVariableDeclaration(varNp, null)
           }
@@ -574,6 +634,7 @@ export default function transformer(fileInfo: FileInfo, api: API, options) {
   transformCallCountAssertions(j, ast)
   transformCalledWithAssertions(j, ast)
   transformMatch(j, ast)
+  transformStubGetCalls(j, ast)
 
   return finale(fileInfo, j, ast, options)
 }

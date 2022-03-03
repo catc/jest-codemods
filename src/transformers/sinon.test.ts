@@ -148,6 +148,54 @@ describe('spies and stubs', () => {
 `
     )
   })
+
+  it('handles .getCalls and spy arguments', () => {
+    expectTransformation(
+      `
+        import sinon from 'sinon-sandbox'
+
+        apiStub.getCall(0)
+        apiStub.getCall(0).args[1].data
+        dispatch.getCall(0).args[0]
+        onPaginate.getCall(0).args
+        api.get.getCall(0).args[0][1]
+`,
+      `
+        apiStub.mock.calls[0]
+        apiStub.mock.calls[0][1].data
+        dispatch.mock.calls[0][0]
+        onPaginate.mock.calls[0]
+        api.get.mock.calls[0][0][1]
+`
+    )
+  })
+
+  it('handles .nthCall', () => {
+    expectTransformation(
+      `
+        import sinon from 'sinon-sandbox'
+
+        apiStub.firstCall
+        apiStub.firstCall.args[1].data
+        apiStub.secondCall
+        apiStub.secondCall.args[1].data
+        apiStub.thirdCall
+        apiStub.thirdCall.args[1].data
+        apiStub.lastCall
+        apiStub.lastCall.args[1].data
+`,
+      `
+        apiStub.mock.calls[0]
+        apiStub.mock.calls[0][1].data
+        apiStub.mock.calls[1]
+        apiStub.mock.calls[1][1].data
+        apiStub.mock.calls[2]
+        apiStub.mock.calls[2][1].data
+        apiStub.mock.lastCall
+        apiStub.mock.lastCall[1].data
+`
+    )
+  })
 })
 
 describe('mocks', () => {
@@ -237,6 +285,8 @@ describe('spy count and call assertions', () => {
 
         expect(Api.get.called).to.equal(true)
         expect(spy.called).to.equal(true)
+        expect(Api.get.called).toEqual(true)
+        expect(spy.called).toEqual(true)
 
         expect(spy.calledOnce).to.equal(true)
         expect(spy.calledTwice).to.equal(true)
@@ -247,6 +297,8 @@ describe('spy count and call assertions', () => {
         expect(Api.get.callCount).to.be(1)
         expect(Api.get.called).to.be(true)
         expect(Api.get.called).to.be(false)
+        expect(Api.get.callCount).toBe(1)
+        expect(Api.get.called).toBe(true)
 
         // .not + neg cases
         expect(Api.get.callCount).not.to.equal(1)
@@ -255,13 +307,15 @@ describe('spy count and call assertions', () => {
         expect(spy.called).to.be(false)
 
         // .notCalled cases
-        expect(spy.notCalled).to.equal(true);
-        expect(spy.notCalled).to.equal(false);
+        expect(spy.notCalled).to.equal(true)
+        expect(spy.notCalled).to.equal(false)
 `,
       `
         expect(Api.get).toHaveBeenCalledTimes(1);
         expect(spy).toHaveBeenCalledTimes(1)
 
+        expect(Api.get).toHaveBeenCalled()
+        expect(spy).toHaveBeenCalled()
         expect(Api.get).toHaveBeenCalled()
         expect(spy).toHaveBeenCalled()
 
@@ -274,6 +328,8 @@ describe('spy count and call assertions', () => {
         expect(Api.get).toHaveBeenCalledTimes(1)
         expect(Api.get).toHaveBeenCalled()
         expect(Api.get).not.toHaveBeenCalled()
+        expect(Api.get).toHaveBeenCalledTimes(1)
+        expect(Api.get).toHaveBeenCalled()
 
         // .not + neg cases
         expect(Api.get).not.toHaveBeenCalledTimes(1)
@@ -282,8 +338,8 @@ describe('spy count and call assertions', () => {
         expect(spy).not.toHaveBeenCalled()
 
         // .notCalled cases
-        expect(spy).not.toHaveBeenCalled();
-        expect(spy).toHaveBeenCalled();
+        expect(spy).not.toHaveBeenCalled()
+        expect(spy).toHaveBeenCalled()
 `
     )
   })
@@ -340,6 +396,11 @@ describe('mock timers', () => {
         foo()
         const clock = sinon.useFakeTimers()
         bar()
+
+        beforeEach(() => {
+          const clock2 = sinon.useFakeTimers(new Date(2015, 2, 14, 0, 0).getTime())
+          clock1 = sinon.useFakeTimers(new Date(2015, 2, 14, 0, 0).getTime())
+        })
 `,
       `
         jest.useFakeTimers()
@@ -355,6 +416,11 @@ describe('mock timers', () => {
         foo()
         jest.useFakeTimers();
         bar()
+
+        beforeEach(() => {
+          jest.useFakeTimers().setSystemTime(new Date(2015, 2, 14, 0, 0).getTime());
+          jest.useFakeTimers().setSystemTime(new Date(2015, 2, 14, 0, 0).getTime())
+        })
 `
     )
   })
