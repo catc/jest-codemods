@@ -661,6 +661,21 @@ test('converts "keys"', () => {
   )
 })
 
+test('converts "key"', () => {
+  expectTransformation(
+    `
+        expect(obj).to.have.key('keyName');
+        expect(obj).to.not.have.key('keyName');
+        expect(obj).not.to.have.key('keyName');
+    `,
+    `
+        expect(obj).toHaveProperty('keyName');
+        expect(obj).not.toHaveProperty('keyName');
+        expect(obj).not.toHaveProperty('keyName');
+    `
+  )
+})
+
 test('converts "least"', () => {
   expectTransformation(
     `expect(10).to.be.at.least(10);`,

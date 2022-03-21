@@ -53,6 +53,7 @@ const fns = [
   'include',
   'includes',
   'instanceof',
+  'key',
   'keys',
   'least',
   'length',
@@ -717,6 +718,8 @@ export default function transformer(fileInfo, api, options) {
             }
 
             return createCall('toEqual', args.map(containing), rest, containsNot)
+          case 'key':
+            return createCall('toHaveProperty', args, rest, containsNot)
           case 'keys': {
             if (containsAny) {
               logWarning('Unsupported Chai Assertion "any.keys"', p)
