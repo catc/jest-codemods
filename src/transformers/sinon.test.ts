@@ -29,6 +29,34 @@ it('removes imports', () => {
   )
 })
 
+describe('jsdom pragma', () => {
+  it('re-adds if its removed', () => {
+    expectTransformation(
+      `
+    /** @jest-environment jsdom */
+    import sinon from 'sinon-sandbox';
+    import bar from 'bar';
+  `,
+      `
+    /** @jest-environment jsdom */
+    import bar from 'bar';
+  `
+    )
+  })
+
+  it('it does nothing if exists', () => {
+    expectTransformation(
+      `
+    import sinon from 'sinon-sandbox';
+    import bar from 'bar'
+  `,
+      `
+    import bar from 'bar'
+  `
+    )
+  })
+})
+
 describe('spies and stubs', () => {
   it('handles spies', () => {
     expectTransformation(
@@ -42,10 +70,10 @@ describe('spies and stubs', () => {
         sinon.spy(() => 'foo');
 `,
       `
-        const stub = jest.spyOn(Api, 'get')
-        jest.spyOn(I18n, 'extend');
-        jest.spyOn(AirbnbUser, 'current').mockReturnValue(currentUser);
-        jest.spyOn(I18n, 'extend');
+        const stub = jest.spyOn(Api, 'get').mockClear()
+        jest.spyOn(I18n, 'extend').mockClear();
+        jest.spyOn(AirbnbUser, 'current').mockClear().mockReturnValue(currentUser);
+        jest.spyOn(I18n, 'extend').mockClear();
         jest.fn();
         jest.fn().mockImplementation(() => 'foo');
 `
@@ -59,7 +87,7 @@ describe('spies and stubs', () => {
         sinon.stub(I18n, 'extend', () => 'foo');
 `,
       `
-        jest.spyOn(I18n, 'extend').mockImplementation(() => 'foo');
+        jest.spyOn(I18n, 'extend').mockClear().mockImplementation(() => 'foo');
 `
     )
   })
@@ -81,9 +109,9 @@ describe('spies and stubs', () => {
         beforeEach(() => {
           jest.spyOn(Api, 'get').mockClear()
           const s1 = jest.spyOn(I18n, 'extend').mockClear()
-          const s2 = jest.spyOn(I18n, 'extend').mockReturnValue('en').mockClear()
-          jest.spyOn(L10n, 'language').mockReturnValue('en').mockClear()
-          jest.spyOn(I18n, 'extend').mockImplementation(() => 'foo').mockClear();
+          const s2 = jest.spyOn(I18n, 'extend').mockClear().mockReturnValue('en')
+          jest.spyOn(L10n, 'language').mockClear().mockReturnValue('en')
+          jest.spyOn(I18n, 'extend').mockClear().mockImplementation(() => 'foo');
         })
 `
     )
@@ -97,9 +125,21 @@ describe('spies and stubs', () => {
         const stub2 = sinon.stub(Api, 'get').returns(Promise.resolve({ foo: '1' }))
 `,
       `
-        const stub1 = jest.spyOn(Api, 'get').mockReturnValue('foo')
-        const stub2 = jest.spyOn(Api, 'get').mockReturnValue(Promise.resolve({ foo: '1' }))
+        const stub1 = jest.spyOn(Api, 'get').mockClear().mockReturnValue('foo')
+        const stub2 = jest.spyOn(Api, 'get').mockClear().mockReturnValue(Promise.resolve({ foo: '1' }))
 `
+    )
+  })
+
+  it('handles .returnsArg', () => {
+    expectTransformation(
+      `
+        import sinon from 'sinon-sandbox'
+        sinon.stub(foo, 'getParam').returnsArg(3);
+  `,
+      `
+        jest.spyOn(foo, 'getParam').mockClear().mockImplementation((...args) => args[3]);
+  `
     )
   })
 
@@ -129,15 +169,15 @@ describe('spies and stubs', () => {
                 if (args[0] === 'foo' && args[1] === 'bar' && args[2] === 1)
                         return 'something';
         })
-        jest.spyOn(Api, 'get').mockImplementation((...args) => {
+        jest.spyOn(Api, 'get').mockClear().mockImplementation((...args) => {
                 if (args[0] === 'foo' && args[1] === 'bar' && args[2] === 1)
                         return 'something';
         })
-        const stub = jest.spyOn(foo, 'bar').mockImplementation((...args) => {
+        const stub = jest.spyOn(foo, 'bar').mockClear().mockImplementation((...args) => {
                 if (args[0] === 'foo' && args[1] === 1)
                         return 'something';
         })
-        jest.spyOn(foo, 'bar').mockImplementation((...args) => {
+        jest.spyOn(foo, 'bar').mockClear().mockImplementation((...args) => {
                 if (args[0] === 'foo' && typeof args[1] === 'object')
                         return 'something';
         })
@@ -149,7 +189,11 @@ describe('spies and stubs', () => {
     )
   })
 
-  it('handles .getCalls and spy arguments', () => {
+  /* 
+    apiStub.getCall(0).args[1].data
+    apistub.args[1][1]
+  */
+  it('handles .getCall, .getCalls and spy arguments', () => {
     expectTransformation(
       `
         import sinon from 'sinon-sandbox'
@@ -159,6 +203,9 @@ describe('spies and stubs', () => {
         dispatch.getCall(0).args[0]
         onPaginate.getCall(0).args
         api.get.getCall(0).args[0][1]
+
+        api.getCalls()[2]
+        api.getCalls()[2].args
 `,
       `
         apiStub.mock.calls[0]
@@ -166,6 +213,30 @@ describe('spies and stubs', () => {
         dispatch.mock.calls[0][0]
         onPaginate.mock.calls[0]
         api.get.mock.calls[0][0][1]
+
+        api.mock.calls[2]
+        api.mock.calls[2]
+`
+    )
+  })
+
+  it('handles .args[n]', () => {
+    expectTransformation(
+      `
+        import sinon from 'sinon-sandbox'
+
+        apiStub.args[2][3]
+        apiStub.foo.bar.args[2][3]
+
+        // just remove .args
+        apiStub.mock.calls[0].args[3]
+`,
+      `
+        apiStub.mock.calls[2][3]
+        apiStub.foo.bar.mock.calls[2][3]
+
+        // just remove .args
+        apiStub.mock.calls[0][3]
 `
     )
   })
@@ -191,9 +262,15 @@ describe('spies and stubs', () => {
         apiStub.mock.calls[1][1].data
         apiStub.mock.calls[2]
         apiStub.mock.calls[2][1].data
+        apiStub.mock.calls[apiStub.mock.calls.length - 1]
+        apiStub.mock.calls[apiStub.mock.calls.length - 1][1].data
+`
+      /* 
+        TODO - use .lastCall once jest is upgraded
+
         apiStub.mock.lastCall
         apiStub.mock.lastCall[1].data
-`
+      */
     )
   })
 })

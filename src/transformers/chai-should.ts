@@ -47,6 +47,7 @@ const fns = [
   'equal',
   'equalTo',
   'equals',
+  'exactly', // sinon-chai
   'greaterthan',
   'gt',
   'gte',
@@ -627,6 +628,12 @@ export default function transformer(fileInfo, api, options) {
             return createCall('toBeCalledWith', args.map(containing), rest, containsNot)
           case 'calledwithexactly':
             return createCall('toBeCalledWith', args, rest, containsNot)
+          case 'exactly':
+            // handle `expect(sinonSpy).to.have.called.exactly(3)`
+            if (chainContains('called', value.callee, isPrefix)) {
+              return createCall('toBeCalledTimes', [firstArg], rest, containsNot)
+            }
+            return value
           case 'eq':
           case 'eql':
           case 'eqls':
@@ -669,6 +676,19 @@ export default function transformer(fileInfo, api, options) {
           case 'contains': {
             if (args.length === 1 && args[0].type === j.ObjectExpression.name) {
               return createCall('toMatchObject', args, rest, containsNot)
+            }
+            // handle `expect(wrapper).to.contain(<div />)`
+            if (args?.[0]?.type === j.JSXElement.name) {
+              return createCall(
+                'toEqual',
+                [j.identifier('true')],
+                updateExpect(value, (node) => {
+                  return j.callExpression(
+                    j.memberExpression(node, j.identifier('contains')),
+                    [args[0]]
+                  )
+                })
+              )
             }
 
             return createCall(

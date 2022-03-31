@@ -41,7 +41,8 @@ export function getExpectArg(obj) {
 
 export function modifyVariableDeclaration(nodePath, newNodePath) {
   const varDec = findParentOfType(nodePath, 'VariableDeclaration')
-  varDec.parentPath.value.forEach((n, i) => {
+  if (!varDec) return
+  varDec.parentPath?.value?.forEach?.((n, i) => {
     if (varDec.value === n) {
       varDec.parentPath.value[i] = newNodePath
     }
@@ -75,4 +76,15 @@ export function isInBeforeEachBlock(np) {
   }
 
   return path.node.callee?.name === 'beforeEach'
+}
+
+export function expressionContainsProperty(node, memberName) {
+  let current = node
+  while (current) {
+    if (current.property?.name === memberName) {
+      return true
+    }
+    current = current.object
+  }
+  return false
 }

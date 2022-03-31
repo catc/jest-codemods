@@ -10,13 +10,15 @@ import finale from '../utils/finale'
 import { removeDefaultImport } from '../utils/imports'
 import { findParentOfType } from '../utils/recast-helpers'
 import {
-  getEndofStatement,
+  expressionContainsProperty,
   getExpectArg,
   isExpectSinonCall,
   isExpectSinonObject,
-  isInBeforeEachBlock,
   modifyVariableDeclaration,
 } from '../utils/sinon-helpers'
+
+const JSDOM_PRAGMA = `* @jest-environment jsdom `
+const JSDOM_PRAGMA_REGEX = /@jest-environment\s+jsdom\b/
 
 const SINON_CALL_COUNT_METHODS = [
   'called',
@@ -209,6 +211,9 @@ function transformStub(j: core.JSCodeshift, ast, sinonExpression) {
           args.slice(0, 2)
         )
 
+        // add mockClear since jest doesn't reset the stub on re-declaration like sinon does
+        spyOn = j.callExpression(j.memberExpression(spyOn, j.identifier('mockClear')), [])
+
         // add mockImplementation call
         if (args.length === 3) {
           spyOn = j.callExpression(
@@ -217,29 +222,6 @@ function transformStub(j: core.JSCodeshift, ast, sinonExpression) {
           )
         }
 
-        const wrapWithMockClear = (node) => {
-          return j.callExpression(j.memberExpression(node, j.identifier('mockClear')), [])
-        }
-
-        // if stub is wrapped in `beforeEach` statement, add `.mockClear()`
-        if (isInBeforeEachBlock(np)) {
-          const { path, levels } = getEndofStatement(np)
-          if (levels > 0) {
-            // if chained, add mockClear to the end
-            np.value = spyOn
-            if (path.node.type === 'VariableDeclarator') {
-              path.node.init = wrapWithMockClear(path.node.init)
-            } else if (path.node.type === 'ExpressionStatement') {
-              path.node.expression = wrapWithMockClear(path.node.expression)
-            }
-          } else {
-            // create new call expression (append mockClear to statement)
-            np.value = wrapWithMockClear(spyOn)
-          }
-          return np.value
-        }
-
-        // not in beforeEach block, just replace `stub` with `spyOn`
         return spyOn
       }
 
@@ -262,38 +244,30 @@ function transformStub(j: core.JSCodeshift, ast, sinonExpression) {
   stub.getCall(0).args[1] -> stub.mock.calls[0][1]
   stub.firstCall|lastCall|thirdCall|secondCall -> stub.mock.calls[n]
 */
-function transformStubGetCalls(j, ast) {
+function transformStubGetCalls(j: core.JSCodeshift, ast) {
   // transform .getCall
   ast
     .find(j.CallExpression, {
       callee: {
         property: {
-          name: 'getCall',
+          name: (n) => ['getCall', 'getCalls'].includes(n),
         },
       },
     })
     .replaceWith((np) => {
       const { node } = np
-      const callIndex = node.arguments[0]
-      return j.memberExpression(
-        j.memberExpression(
-          j.memberExpression(node.callee.object, j.identifier('mock')),
-          j.identifier('calls')
-        ),
-        callIndex
+      const withMockCall = j.memberExpression(
+        j.memberExpression(node.callee.object, j.identifier('mock')),
+        j.identifier('calls')
       )
-    })
-
-  // transform .args[0] expression
-  ast
-    // match on .args, not the more specific .args[n]
-    .find(j.MemberExpression, {
-      property: {
-        name: 'args',
-      },
-    })
-    .replaceWith((np) => {
-      return np.node.object
+      if (node.callee.property.name === 'getCall') {
+        return j.memberExpression(
+          withMockCall,
+          // ensure is a literal to prevent something like: `calls.0[0]`
+          j.literal(node.arguments?.[0]?.value ?? 0)
+        )
+      }
+      return withMockCall
     })
 
   // transform .nthCall
@@ -320,13 +294,59 @@ function transformStubGetCalls(j, ast) {
           return createMockCall(1)
         case 'thirdCall':
           return createMockCall(2)
-        case 'lastCall':
+        case 'lastCall': {
+          // budget .lastCall
+          const stub = j.memberExpression(node, j.identifier('calls'))
+          return j.memberExpression(
+            stub,
+            j.binaryExpression(
+              '-',
+              j.memberExpression(stub, j.identifier('length')),
+              j.literal(1)
+            )
+          )
+
+          // TODO - use this once jest is upgraded to support .mock.lastCall
           return j.memberExpression(node, j.identifier('lastCall'))
+        }
       }
       return node
     })
+
+  // transform .args[0] expression
+  ast
+    // match on .args, not the more specific .args[n]
+    .find(j.MemberExpression, {
+      property: {
+        name: 'args',
+      },
+    })
+    .replaceWith((np) => {
+      const { node } = np
+
+      // if contains .mock.calls already, can safely remove .args
+      if (
+        expressionContainsProperty(node, 'mock') &&
+        (expressionContainsProperty(node, 'calls') ||
+          expressionContainsProperty(node, 'lastCall'))
+      ) {
+        return np.node.object
+      }
+
+      /* 
+        replace .args with mock.calls, handles:
+        stub.args[0][0] -> stub.mock.calls[0][0]
+      */
+      return j.memberExpression(np.node.object, j.identifier('mock.calls'))
+    })
 }
 
+/* 
+  handles:
+    .withArgs
+    .returns
+    .returnsArg
+*/
 function transformMock(j: core.JSCodeshift, ast) {
   // stub.withArgs(111).returns('foo') => stub.mockImplementation((...args) => { if (args[0] === '111') return 'foo' })
   ast
@@ -422,6 +442,28 @@ function transformMock(j: core.JSCodeshift, ast) {
     })
     .forEach((np) => {
       np.node.callee.property.name = 'mockReturnValue'
+    })
+
+  // .returnsArg
+  ast
+    .find(j.CallExpression, {
+      callee: {
+        type: 'MemberExpression',
+        property: { name: 'returnsArg' },
+      },
+    })
+    .replaceWith((np) => {
+      const { node } = np
+      node.callee.property.name = 'mockImplementation'
+      const argToMock = j.literal(node.arguments[0].value)
+
+      const argsVar = j.identifier('args')
+      const mockImplementationFn = j.arrowFunctionExpression(
+        [j.spreadPropertyPattern(argsVar)],
+        j.memberExpression(argsVar, argToMock)
+      )
+      node.arguments = [mockImplementationFn]
+      return node
     })
 }
 
@@ -613,18 +655,48 @@ function transformMockTimers(j, ast) {
     })
 }
 
+/* 
+  checks if file originally had jsdom pragma, and ensure it's re-added
+  if it was removed
+*/
+function handleJSDomPragma(j, ast, filepath) {
+  const body = ast.find(j.Program).get('body', 0).node
+
+  const originalSourceHasPragma = (body.comments || []).find(
+    (c) => c.type === j.CommentBlock.name && c.value?.match?.(JSDOM_PRAGMA_REGEX)
+  )
+
+  return () => {
+    // originally didnt have the pragma, do nothing
+    if (!originalSourceHasPragma) return
+
+    // check if it still has the pragma
+    const body = ast.find(j.Program).get('body', 0).node
+    const hasJSDOMPragma = (body.comments || []).find((c) => c.value?.match?.(/jsdom/))
+
+    if (!hasJSDOMPragma) {
+      const pragma = j.commentBlock(JSDOM_PRAGMA)
+      if (!body.comments) {
+        body.comments = []
+      }
+      body.comments.unshift(pragma)
+    }
+  }
+}
+
 export default function transformer(fileInfo: FileInfo, api: API, options) {
   const j = api.jscodeshift
   const ast = j(fileInfo.source)
 
+  const fixJSDomPragma = handleJSDomPragma(j, ast, fileInfo.path)
   const sinonExpression = removeDefaultImport(j, ast, 'sinon-sandbox')
 
   if (!sinonExpression) {
-    // console.warn(`no sinon for "${fileInfo.path}"`)
+    console.warn(`no sinon for "${fileInfo.path}"`)
     if (!options.skipImportDetection) {
       return fileInfo.source
     }
-    // return null
+    return null
   }
 
   transformStub(j, ast, sinonExpression)
@@ -635,6 +707,7 @@ export default function transformer(fileInfo: FileInfo, api: API, options) {
   transformCalledWithAssertions(j, ast)
   transformMatch(j, ast)
   transformStubGetCalls(j, ast)
+  fixJSDomPragma()
 
   return finale(fileInfo, j, ast, options)
 }

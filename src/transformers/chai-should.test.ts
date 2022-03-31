@@ -19,6 +19,17 @@ function expectTransformation(source, expectedOutput) {
   expect(consoleWarnings).toEqual([])
 }
 
+test('chai-enzyme: handle .to.contain(JSXElement)', () => {
+  expectTransformation(
+    `
+    expect(wrapper).to.contain(<ImpressionLogger />)
+  `,
+    `
+    expect(wrapper.contains(<ImpressionLogger />)).toEqual(true)
+  `
+  )
+})
+
 test('chai-enzyme: handle .to.be.present', () => {
   expectTransformation(
     `
@@ -300,6 +311,23 @@ test('converts "called"', () => {
         expect(sinonSpy).not.toBeCalled();
         expect(sinonSpy).not.toBeCalled();
         expect(sinonSpy).not.toBeCalled();
+    `
+  )
+})
+
+test('converts "called.exactly(n)"', () => {
+  expectTransformation(
+    `
+        expect(sinonSpy).to.have.called.exactly(3)
+        expect(sinonSpy).to.not.have.called.exactly(3)
+        expect(sinonSpy).to.have.been.called.exactly(3)
+        expect(sinonSpy).to.not.have.been.called.exactly(3)
+    `,
+    `
+        expect(sinonSpy).toBeCalledTimes(3)
+        expect(sinonSpy).not.toBeCalledTimes(3)
+        expect(sinonSpy).toBeCalledTimes(3)
+        expect(sinonSpy).not.toBeCalledTimes(3)
     `
   )
 })
